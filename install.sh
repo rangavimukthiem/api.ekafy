@@ -492,18 +492,34 @@ step_02_dependencies() {
         log_info "MariaDB installed."
 
         echo -e "  ${DIM}Installing: PHP ${PHP_VERSION} + FPM for WordPress...${RESET}"
-        if ! cmd_exists php; then
-            LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php 2>/dev/null || true
-            apt-get update -qq
-        fi
-        apt-get install -y -qq \
-            "php${PHP_VERSION}" "php${PHP_VERSION}-fpm" \
-            "php${PHP_VERSION}-mysql" "php${PHP_VERSION}-curl" \
-            "php${PHP_VERSION}-gd" "php${PHP_VERSION}-mbstring" \
-            "php${PHP_VERSION}-xml" "php${PHP_VERSION}-zip" \
-            "php${PHP_VERSION}-intl" "php${PHP_VERSION}-bcmath" \
-            "php${PHP_VERSION}-imagick"
-        log_info "PHP ${PHP_VERSION} + FPM installed."
+        
+        echo -e "  ${DIM}Installing: PHP ${PHP_VERSION} + FPM for WordPress...${RESET}"
+
+# Ensure PPA is properly added (do NOT hide errors)
+if ! grep -R "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d >/dev/null 2>&1; then
+    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+fi
+
+apt-get update -qq
+
+# Detect best available PHP version if 8.2 not available
+if apt-cache show "php${PHP_VERSION}" >/dev/null 2>&1; then
+    PHP_REAL_VERSION="${PHP_VERSION}"
+else
+    log_warn "PHP ${PHP_VERSION} not available — falling back to default PHP version"
+    PHP_REAL_VERSION=$(apt-cache search "^php[0-9].[0-9]-fpm$" | awk '{print $1}' | head -n 1 | sed 's/php//;s/-fpm//')
+fi
+
+log_info "Using PHP version: ${PHP_REAL_VERSION}"
+
+apt-get install -y -qq \
+    "php${PHP_REAL_VERSION}" "php${PHP_REAL_VERSION}-fpm" \
+    "php${PHP_REAL_VERSION}-mysql" "php${PHP_REAL_VERSION}-curl" \
+    "php${PHP_REAL_VERSION}-gd" "php${PHP_REAL_VERSION}-mbstring" \
+    "php${PHP_REAL_VERSION}-xml" "php${PHP_REAL_VERSION}-zip" \
+    "php${PHP_REAL_VERSION}-intl" "php${PHP_REAL_VERSION}-bcmath" \
+    "php${PHP_REAL_VERSION}-imagick"
+
     else
         log_skip "WordPress/MariaDB/PHP skipped (--no-wp)"
     fi
