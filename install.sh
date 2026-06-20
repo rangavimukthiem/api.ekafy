@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-echo"# =============================================================================
+echo "# =============================================================================
 #
 #   ███████╗██╗  ██╗ █████╗ ███████╗██╗   ██╗
 #   ██╔════╝██║ ██╔╝██╔══██╗██╔════╝╚██╗ ██╔╝
@@ -173,7 +173,7 @@ print_banner() {
     echo -e "  ${DIM}Install Redis :${RESET} ${INSTALL_REDIS}"
     echo ""
 }
-echo"\n
+echo " \n
 # ============================================================================================
 # ██████╗ ███████╗ ██████╗ ██╗   ██╗██╗██████╗ ███████╗███╗   ███╗███████╗███╗   ██╗████████╗███████╗
 # ██╔══██╗██╔════╝██╔═══██╗██║   ██║██║██╔══██╗██╔════╝████╗ ████║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
@@ -185,7 +185,7 @@ echo"\n
 # PRE-FLIGHT REQUIREMENTS CHECK
 # Runs BEFORE any installation. Reports all issues at once so you can fix
 # everything before re-running.
-# ============================================================================================\n"
+# ============================================================================================\n "
 
 # Tracking
 REQ_PASS=0
@@ -595,55 +595,113 @@ step_05_git_clone() {
 
     if [[ "${SKIP_GIT_CLONE}" == "yes" ]]; then
         log_skip "Git clone skipped (--no-clone). Expecting code at ${BACKEND_DIR}"
-        if [[ ! -f "${BACKEND_DIR}/manage.py" ]]; then
-            log_warn "manage.py not found at ${BACKEND_DIR} — ensure Django project is there before continuing."
-        fi
         return
     fi
 
-    # Ensure SSH key exists
-    if [[ ! -f ~/.ssh/id_ed25519 && ! -f ~/.ssh/id_rsa ]]; then
-        log_warn "No SSH key found — generating ed25519 key..."
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        ssh-keygen -t ed25519 \
-            -C "ekafy-deploy@$(hostname -f 2>/dev/null || hostname)" \
-            -f ~/.ssh/id_ed25519 \
+    # ─────────────────────────────────────────────
+    # DETECT REAL USER (CRITICAL FOR sudo SAFETY)
+    # ─────────────────────────────────────────────
+
+    DEPLOY_USER="${SUDO_USER:-$USER}"
+    DEPLOY_HOME="$(eval echo "~${DEPLOY_USER}")"
+
+    SSH_DIR="${DEPLOY_HOME}/.ssh"
+    SSH_KEY="${SSH_DIR}/id_ed25519"
+
+    mkdir -p "${SSH_DIR}"
+    chmod 700 "${SSH_DIR}"
+
+    log_info "Using SSH key for user: ${DEPLOY_USER}"
+
+    # ─────────────────────────────────────────────
+    # CREATE KEY IF MISSING
+    # ─────────────────────────────────────────────
+
+    if [[ ! -f "${SSH_KEY}" ]]; then
+        log_warn "No SSH key found — generating..."
+
+        sudo -u "${DEPLOY_USER}" ssh-keygen -t ed25519 \
+            -C "ekafy-deploy@$(hostname)" \
+            -f "${SSH_KEY}" \
             -N ""
+
         echo ""
-        echo -e "  ${BOLD}${YELLOW}══════════════════════════════════════════════════════${RESET}"
-        echo -e "  ${BOLD}${YELLOW}  ACTION REQUIRED: Add this SSH key to GitHub${RESET}"
-        echo -e "  ${BOLD}${YELLOW}══════════════════════════════════════════════════════${RESET}"
+        echo "════════════════════════════════════"
+        echo " ADD THIS KEY TO GITHUB"
+        echo "════════════════════════════════════"
         echo ""
-        cat ~/.ssh/id_ed25519.pub
+
+        cat "${SSH_KEY}.pub"
+
         echo ""
-        echo -e "  ${CYAN}Go to: GitHub → Your Repo → Settings → Deploy Keys → Add Key${RESET}"
-        echo ""
-        read -rp "  Press ENTER once you've added the deploy key to GitHub..."
-        echo ""
+        read -rp "Press ENTER after adding key to GitHub..."
     fi
 
-    # Add GitHub to known_hosts (prevent interactive prompt)
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
-    if ! grep -q "github.com" ~/.ssh/known_hosts 2>/dev/null; then
-        ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null
-        log_info "GitHub added to SSH known_hosts."
+    chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "${SSH_DIR}"
+
+    # ─────────────────────────────────────────────
+    # SSH AGENT FIX (VERY IMPORTANT)
+    # ─────────────────────────────────────────────
+
+    sudo -u "${DEPLOY_USER}" bash -c "
+        eval \$(ssh-agent -s) >/dev/null
+        ssh-add ${SSH_KEY} 2>/dev/null || true
+    "
+
+    # ─────────────────────────────────────────────
+    # known_hosts
+    # ─────────────────────────────────────────────
+
+    touch "${SSH_DIR}/known_hosts"
+    ssh-keyscan -H github.com >> "${SSH_DIR}/known_hosts" 2>/dev/null
+
+    # ─────────────────────────────────────────────
+    # TEST SSH BEFORE CLONE (NO FALSE POSITIVES)
+    # ─────────────────────────────────────────────
+
+    log_check "Testing GitHub SSH access..."
+
+    SSH_TEST=$(
+        sudo -u "${DEPLOY_USER}" ssh -o BatchMode=yes -T git@github.com 2>&1 || true
+    )
+
+    if ! echo "$SSH_TEST" | grep -qi "successfully authenticated"; then
+        log_error "GitHub SSH authentication FAILED"
+        echo "$SSH_TEST"
+        exit 1
     fi
 
-    # Clone or update
-    if dir_exists "${BACKEND_DIR}/.git"; then
-        log_info "Repository already cloned — pulling latest from ${GITHUB_BRANCH}..."
+    log_info "GitHub SSH authentication OK"
+
+    # ─────────────────────────────────────────────
+    # CLONE / UPDATE
+    # ─────────────────────────────────────────────
+
+    if [[ -d "${BACKEND_DIR}/.git" ]]; then
+
+        log_info "Updating repository..."
+
         git -C "${BACKEND_DIR}" fetch origin
         git -C "${BACKEND_DIR}" reset --hard "origin/${GITHUB_BRANCH}"
+
     else
-        log_info "Cloning from ${GITHUB_REPO} (branch: ${GITHUB_BRANCH})..."
-        git clone --depth 1 --branch "${GITHUB_BRANCH}" \
-            "${GITHUB_REPO}" "${BACKEND_DIR}"
+
+        log_info "Cloning repository..."
+
+        sudo -u "${DEPLOY_USER}" git clone \
+            --depth 1 \
+            --branch "${GITHUB_BRANCH}" \
+            "${GITHUB_REPO}" \
+            "${BACKEND_DIR}"
     fi
 
-    chown -R "${EKAFY_USER}:${EKAFY_GROUP}" "${BACKEND_DIR}"
-    log_info "Backend code ready at ${BACKEND_DIR}/"
+    # ─────────────────────────────────────────────
+    # FIX PERMISSIONS SAFELY (NO HARD-CODED GROUPS)
+    # ─────────────────────────────────────────────
+
+    chown -R "${DEPLOY_USER}" "${BACKEND_DIR}"
+
+    log_info "Backend ready at ${BACKEND_DIR}"
 }
 
 # ─── STEP 6: Python Virtual Environment ──────────────────────────────────────
@@ -1374,12 +1432,13 @@ print_replicate_guide() {
 main() {
     print_banner
     check_requirements    # ← runs first, exits on hard failures
-
-    step_01_system_update
+	
+    
     step_02_dependencies
     step_03_user
     step_04_directories
     step_05_git_clone
+    step_01_system_update
     step_06_python_env
     step_07_env_file
     step_08_postgresql
