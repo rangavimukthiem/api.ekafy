@@ -2,6 +2,9 @@
 
 set -e
 
+ROOT_DIR=/srv/ekafy
+
+
 echo "==================================================================="
 echo "   EKAFY SERVER INSTALLER v1 API Engine nginx|postgre|django REST"
 echo "==================================================================="
@@ -31,21 +34,54 @@ id -u ekafy &>/dev/null || useradd -m -s /bin/bash ekafy
 # 4. PROJECT DIRECTORY
 # -----------------------------
 echo "[4/10] Creating project directory..."
-mkdir -p /srv/ekafy
-chown -R ekafy:ekafy /srv/ekafy
+mkdir -p $ROOT_DIR
+chown -R ekafy:ekafy $ROOT_DIR
 
 # -----------------------------
 # 5. CLONE PROJECT
 # -----------------------------
+echo "[5/10] Validating Git + GitHub access..."
+
+# 1. Git check
+if ! command -v git &> /dev/null; then
+    echo "Git not installed. Installing..."
+    apt install -y git
+fi
+
+# 2. GitHub connectivity check
+if ! curl -s --head https://github.com | grep "200" > /dev/null; then
+    echo "ERROR: Cannot reach GitHub"
+    exit 1
+fi
+
+# 3. Repo validation
+echo "Checking repository access..."
+if ! git ls-remote https://github.com/ekafy/core.git &> /dev/null; then
+    echo "ERROR: Cannot access repository (wrong URL or private repo)"
+    exit 1
+fi
+
+echo "Git validation OK"
+# -----------------------------
+# 5. CLONE PROJECT
+# -----------------------------
 echo "[5/10] Cloning backend..."
-cd /srv/ekafy
-sudo -u ekafy git clone https://github.com/ekafy/core.git backend || true
+cd $ROOT_DIR
+if ! sudo -u ekafy git clone https://github.com/rangavimukthiem/api.ekafy.git backend || true ; then 
+    sudo -u ekafy git clone git@github.com:rangavimukthiem/api.ekafy.git backend || true 
+    exit 0
+fi
+
+
+
+
+
 
 # -----------------------------
 # 6. PYTHON ENV
 # -----------------------------
 echo "[6/10] Setting up virtual environment..."
-cd /srv/ekafy/backend
+cd $ROOT_DIR/backend
 sudo -u ekafy python3 -m venv venv
 
 sudo -u ekafy bash -c "source venv/bin/activate && pip install --upgrade pip"
@@ -59,7 +95,7 @@ fi
 # -----------------------------
 echo "[7/10] Creating .env file..."
 
-cat > /srv/ekafy/backend/.env <<EOF
+cat > $ROOT_DIR/backend/.env <<EOF
 DEBUG=False
 SECRET_KEY=change-this-secret
 ALLOWED_HOSTS=*
@@ -71,7 +107,7 @@ DB_HOST=localhost
 DB_PORT=5432
 EOF
 
-chown ekafy:ekafy /srv/ekafy/backend/.env
+chown ekafy:ekafy $ROOT_DIR/backend/.env
 
 # -----------------------------
 # 8. POSTGRES SETUP
@@ -92,7 +128,7 @@ EOF
 # -----------------------------
 echo "[9/10] Running Django migrations..."
 
-cd /srv/ekafy/backend
+cd $ROOT_DIR/backend
 
 sudo -u ekafy bash -c "source venv/bin/activate && python manage.py migrate"
 sudo -u ekafy bash -c "source venv/bin/activate && python manage.py collectstatic --noinput"
@@ -110,10 +146,10 @@ After=network.target
 [Service]
 User=ekafy
 Group=www-data
-WorkingDirectory=/srv/ekafy/backend
-EnvironmentFile=/srv/ekafy/backend/.env
+WorkingDirectory=$ROOT_DIR/backend
+EnvironmentFile=$ROOT_DIR/backend/.env
 
-ExecStart=/srv/ekafy/backend/venv/bin/gunicorn ekafy.wsgi:application \
+ExecStart=$ROOT_DIR/backend/venv/bin/gunicorn ekafy.wsgi:application \
 --bind 127.0.0.1:8000 \
 --workers 3
 
