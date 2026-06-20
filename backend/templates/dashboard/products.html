@@ -1,0 +1,56 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Products — Ekafy Control System{% endblock %}
+{% block page_title %}Product Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">All Products</span>
+        <span style="font-size:0.78rem;color:var(--text-muted);">{{ products|length }} total</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td class="text-muted font-mono">{{ product.id }}</td>
+                    <td style="color:var(--text-primary);font-weight:500;">{{ product.product_name }}</td>
+                    <td>{{ product.get_product_type_display }}</td>
+                    <td>
+                        <span class="status-badge {% if product.status == 'active' %}active{% elif product.status == 'inactive' or product.status == 'archived' %}inactive{% else %}unknown{% endif %}">
+                            {{ product.status }}
+                        </span>
+                    </td>
+                    <td class="text-muted" style="font-size:0.8rem;">{{ product.created_at|date:"Y-m-d H:i" }}</td>
+                    <td class="text-muted" style="font-size:0.8rem;">{{ product.updated_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">
+                        No products found. Use the API to create products.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="margin-top:16px;" class="card">
+    <div class="card-body">
+        <div style="font-size:0.82rem;color:var(--text-muted);">
+            Manage products via REST API: <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);">POST /api/v1/products/</code> — Requires JWT Bearer token.
+        </div>
+    </div>
+</div>
+{% endblock %}

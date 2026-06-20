@@ -1,0 +1,128 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Services — Ekafy Control System{% endblock %}
+{% block page_title %}Service Management{% endblock %}
+
+{% block content %}
+<div id="flash-area"></div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Service Control Panel</span>
+        <span style="font-size:0.78rem;color:var(--text-muted);">Only safe systemctl commands are executed</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <table class="data-table" id="services-table">
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc in services %}
+                <tr id="row-{{ svc.service }}">
+                    <td style="font-weight:500;font-family:'JetBrains Mono',monospace;">{{ svc.service }}</td>
+                    <td><span class="status-badge {{ svc.status }}" id="badge-{{ svc.service }}">{{ svc.status }}</span></td>
+                    <td>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-primary btn-sm" onclick="serviceAction('{{ svc.service }}', 'restart')">↺ Restart</button>
+                            <button class="btn btn-sm" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);"
+                                    onclick="serviceAction('{{ svc.service }}', 'start')">▶ Start</button>
+                            <button class="btn btn-danger btn-sm" onclick="serviceAction('{{ svc.service }}', 'stop')">■ Stop</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="margin-top:16px;" class="card">
+    <div class="card-body">
+        <div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:0.82rem;">
+            <span>🔒</span>
+            <span>All commands use <code style="font-family:'JetBrains Mono',monospace;">systemctl {action} {service}</code> with a strict allowlist — no user input reaches the shell.</span>
+        </div>
+    </div>
+</div>
+
+<div id="result-card" style="display:none;margin-top:20px;" class="card">
+    <div class="card-header"><span class="card-title">Last Command Result</span></div>
+    <div class="card-body">
+        <pre id="result-output" style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text-secondary);white-space:pre-wrap;"></pre>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            for (let cookie of document.cookie.split(';')) {
+                cookie = cookie.trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function serviceAction(service, action) {
+        const flash = document.getElementById('flash-area');
+        flash.innerHTML = `<div class="flash flash-success"><span class="spinner"></span> Executing: systemctl ${action} ${service}...</div>`;
+
+        try {
+            const res = await fetch('/dashboard/api/service-control/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({ service, action }),
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                flash.innerHTML = `<div class="flash flash-success">✓ systemctl ${action} ${service} — success</div>`;
+                // Update status badge
+                setTimeout(refreshStatuses, 1500);
+            } else {
+                flash.innerHTML = `<div class="flash flash-error">✗ ${data.stderr || data.error || 'Command failed'}</div>`;
+            }
+
+            // Show result
+            const rc = document.getElementById('result-card');
+            rc.style.display = 'block';
+            document.getElementById('result-output').textContent =
+                `Service:  ${data.service}\nAction:   ${data.action}\nReturn:   ${data.return_code}\nstdout:   ${data.stdout || '(none)'}\nstderr:   ${data.stderr || '(none)'}`;
+
+        } catch(e) {
+            flash.innerHTML = `<div class="flash flash-error">✗ Network error: ${e.message}</div>`;
+        }
+    }
+
+    async function refreshStatuses() {
+        try {
+            const res = await fetch('/dashboard/api/snapshot/');
+            const d = await res.json();
+            if (!d.services) return;
+            d.services.forEach(svc => {
+                const badge = document.getElementById(`badge-${svc.service}`);
+                if (badge) {
+                    badge.textContent = svc.status;
+                    badge.className = `status-badge ${svc.status}`;
+                }
+            });
+            updateTimestamp();
+        } catch(e) {}
+    }
+
+    setInterval(refreshStatuses, 15000);
+</script>
+{% endblock %}

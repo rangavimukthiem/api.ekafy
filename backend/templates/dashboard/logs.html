@@ -1,0 +1,46 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Logs — Ekafy Control System{% endblock %}
+{% block page_title %}Log Viewer{% endblock %}
+
+{% block content %}
+<div class="mb-4" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    {% for log_name in available_logs %}
+    <a href="/dashboard/logs/?log={{ log_name }}"
+       class="btn {% if log_name == log_key %}btn-primary{% endif %}"
+       style="{% if log_name != log_key %}background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);{% endif %}">
+        {{ log_name }}
+    </a>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">{{ log_key }}</span>
+        <span style="font-size:0.78rem;color:var(--text-muted);">Last {{ log_data.line_count|default:"0" }} lines</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if log_data.error %}
+        <div style="padding:20px;color:var(--warning);">⚠ {{ log_data.error }}</div>
+        {% else %}
+        <div class="log-output" id="log-container">
+            {% for line in log_data.lines %}
+            <div class="log-line {% if 'ERROR' in line %}error{% elif 'WARNING' in line or 'WARN' in line %}warning{% else %}info{% endif %}">{{ line }}</div>
+            {% empty %}
+            <div class="log-line text-muted">Log file is empty.</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-scroll to bottom of log
+    const logContainer = document.getElementById('log-container');
+    if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+</script>
+{% endblock %}

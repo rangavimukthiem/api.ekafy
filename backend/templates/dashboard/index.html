@@ -1,0 +1,175 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Dashboard — Ekafy Control System{% endblock %}
+{% block page_title %}System Overview{% endblock %}
+
+{% block content %}
+
+<!-- ─── METRIC CARDS ─────────────────────────────────────────────────────── -->
+<div class="metrics-grid mb-6" id="metrics-grid">
+    <!-- CPU -->
+    <div class="metric-card" style="--glow-color: rgba(59,130,246,0.05);">
+        <div class="metric-label">CPU Usage</div>
+        <div class="metric-value" id="cpu-val">{{ snapshot.cpu.percent }}<span class="metric-unit">%</span></div>
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar {% if snapshot.cpu.percent > 85 %}danger{% elif snapshot.cpu.percent > 60 %}warning{% else %}good{% endif %}"
+                 id="cpu-bar" style="width: {{ snapshot.cpu.percent }}%"></div>
+        </div>
+    </div>
+
+    <!-- RAM -->
+    <div class="metric-card">
+        <div class="metric-label">RAM Usage</div>
+        <div class="metric-value" id="ram-val">{{ snapshot.memory.percent }}<span class="metric-unit">%</span></div>
+        <div class="metric-sub" id="ram-sub">{{ snapshot.memory.used_mb }} MB / {{ snapshot.memory.total_mb }} MB</div>
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar {% if snapshot.memory.percent > 85 %}danger{% elif snapshot.memory.percent > 65 %}warning{% else %}good{% endif %}"
+                 id="ram-bar" style="width: {{ snapshot.memory.percent }}%"></div>
+        </div>
+    </div>
+
+    <!-- Disk -->
+    <div class="metric-card">
+        <div class="metric-label">Disk Usage</div>
+        <div class="metric-value" id="disk-val">{{ snapshot.disk.percent }}<span class="metric-unit">%</span></div>
+        <div class="metric-sub" id="disk-sub">{{ snapshot.disk.used_gb }} GB / {{ snapshot.disk.total_gb }} GB</div>
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar {% if snapshot.disk.percent > 85 %}danger{% elif snapshot.disk.percent > 70 %}warning{% else %}good{% endif %}"
+                 id="disk-bar" style="width: {{ snapshot.disk.percent }}%"></div>
+        </div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="metric-card">
+        <div class="metric-label">Uptime</div>
+        <div class="metric-value" style="font-size:1.4rem;" id="uptime-val">{{ snapshot.uptime.human }}</div>
+        <div class="metric-sub">Load: {{ snapshot.load_average.1min }} / {{ snapshot.load_average.5min }} / {{ snapshot.load_average.15min }}</div>
+    </div>
+
+    <!-- Network -->
+    <div class="metric-card">
+        <div class="metric-label">Active Connections</div>
+        <div class="metric-value" id="net-val">{{ snapshot.network.established_connections }}</div>
+        <div class="metric-sub">Established TCP</div>
+    </div>
+
+    <!-- Products -->
+    <div class="metric-card">
+        <div class="metric-label">Total Products</div>
+        <div class="metric-value">{{ products|length }}</div>
+        <div class="metric-sub"><a href="/dashboard/products/" style="color:var(--accent);text-decoration:none;">View all →</a></div>
+    </div>
+</div>
+
+<!-- ─── SERVICES + PRODUCTS ──────────────────────────────────────────────── -->
+<div class="grid-2 mb-6">
+    <!-- Service Status -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Service Health</span>
+            <a href="/dashboard/services/" class="btn btn-sm btn-primary">Manage</a>
+        </div>
+        <div class="card-body">
+            <div class="service-list" id="service-list">
+                {% for svc in snapshot.services %}
+                <div class="service-item">
+                    <span class="service-name">{{ svc.service }}</span>
+                    <span class="status-badge {{ svc.status }}">{{ svc.status }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Products -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Recent Products</span>
+            <a href="/dashboard/products/" class="btn btn-sm btn-primary">All Products</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td style="color:var(--text-primary);font-weight:500;">{{ product.product_name }}</td>
+                        <td>{{ product.get_product_type_display }}</td>
+                        <td><span class="status-badge {% if product.status == 'active' %}active{% else %}unknown{% endif %}">{{ product.status }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="3" style="text-align:center;color:var(--text-muted);">No products yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ─── Live refresh every 10 seconds ────────────────────────────────────────
+    async function refreshMetrics() {
+        try {
+            const res = await fetch('/dashboard/api/snapshot/');
+            if (!res.ok) return;
+            const d = await res.json();
+
+            // CPU
+            setMetric('cpu-val', d.cpu.percent + '<span class="metric-unit">%</span>');
+            setBar('cpu-bar', d.cpu.percent);
+
+            // RAM
+            setMetric('ram-val', d.memory.percent + '<span class="metric-unit">%</span>');
+            document.getElementById('ram-sub').textContent = `${d.memory.used_mb} MB / ${d.memory.total_mb} MB`;
+            setBar('ram-bar', d.memory.percent);
+
+            // Disk
+            setMetric('disk-val', d.disk.percent + '<span class="metric-unit">%</span>');
+            document.getElementById('disk-sub').textContent = `${d.disk.used_gb} GB / ${d.disk.total_gb} GB`;
+            setBar('disk-bar', d.disk.percent);
+
+            // Uptime
+            document.getElementById('uptime-val').textContent = d.uptime.human;
+
+            // Network
+            document.getElementById('net-val').textContent = d.network.established_connections;
+
+            // Services
+            const svcList = document.getElementById('service-list');
+            if (svcList && d.services) {
+                svcList.innerHTML = d.services.map(s => `
+                    <div class="service-item">
+                        <span class="service-name">${s.service}</span>
+                        <span class="status-badge ${s.status}">${s.status}</span>
+                    </div>
+                `).join('');
+            }
+
+            updateTimestamp();
+        } catch(e) { /* ignore network errors */ }
+    }
+
+    function setMetric(id, html) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    }
+
+    function setBar(id, percent) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.width = percent + '%';
+        el.className = 'progress-bar ' + (percent > 85 ? 'danger' : percent > 65 ? 'warning' : 'good');
+    }
+
+    // Refresh every 10s
+    setInterval(refreshMetrics, 10000);
+</script>
+{% endblock %}

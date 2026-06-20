@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ekafy Control System{% endblock %}</title>
+    <meta name="description" content="Ekafy Hybrid Control System — Server monitoring and product management dashboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ─── DESIGN TOKENS ─────────────────────────────────────────────────── */
+        :root {
+            --bg-base:       #0b0f1a;
+            --bg-surface:    #111827;
+            --bg-card:       #1a2235;
+            --bg-card-hover: #1f2a40;
+            --border:        rgba(255,255,255,0.07);
+            --border-accent: rgba(99,179,237,0.3);
+
+            --text-primary:   #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted:     #64748b;
+
+            --accent:        #3b82f6;
+            --accent-glow:   rgba(59,130,246,0.15);
+            --accent-hover:  #2563eb;
+            --success:       #10b981;
+            --success-glow:  rgba(16,185,129,0.15);
+            --warning:       #f59e0b;
+            --danger:        #ef4444;
+            --danger-glow:   rgba(239,68,68,0.15);
+
+            --sidebar-w: 240px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+
+            --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+            --shadow-glow: 0 0 30px rgba(59,130,246,0.08);
+        }
+
+        /* ─── RESET ──────────────────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 15px; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        /* ─── SIDEBAR ────────────────────────────────────────────────────────── */
+        .sidebar {
+            width: var(--sidebar-w);
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            z-index: 100;
+        }
+        .sidebar-logo {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-logo .brand {
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+        .sidebar-logo .tagline {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .nav-section-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 8px 8px 4px;
+            margin-top: 8px;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+        .nav-link:hover {
+            background: var(--accent-glow);
+            color: var(--text-primary);
+        }
+        .nav-link.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+            border-left: 2px solid var(--accent);
+        }
+        .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .sidebar-footer .user-name { color: var(--text-secondary); font-weight: 500; }
+
+        /* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
+        .main {
+            margin-left: var(--sidebar-w);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .topbar {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 28px;
+            height: 58px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .topbar h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+        .badge-live {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--success-glow);
+            color: var(--success);
+            border: 1px solid rgba(16,185,129,0.3);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .badge-live::before {
+            content: '';
+            width: 6px; height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .content-area {
+            padding: 28px;
+            flex: 1;
+        }
+
+        /* ─── CARDS ──────────────────────────────────────────────────────────── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            transition: border-color 0.2s;
+        }
+        .card:hover { border-color: var(--border-accent); }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .card-body { padding: 20px; }
+
+        /* ─── METRICS GRID ───────────────────────────────────────────────────── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--glow-color, transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .metric-card:hover::before { opacity: 1; }
+        .metric-card:hover { border-color: var(--border-accent); transform: translateY(-1px); }
+        .metric-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        .metric-unit {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .metric-sub {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        /* ─── PROGRESS BAR ───────────────────────────────────────────────────── */
+        .progress-bar-wrapper {
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px;
+            height: 6px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+        .progress-bar.good    { background: var(--success); }
+        .progress-bar.warning { background: var(--warning); }
+        .progress-bar.danger  { background: var(--danger); }
+
+        /* ─── SERVICE BADGES ─────────────────────────────────────────────────── */
+        .service-list { display: flex; flex-direction: column; gap: 10px; }
+        .service-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .service-name { font-size: 0.875rem; font-weight: 500; }
+        .status-badge {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.active {
+            background: var(--success-glow);
+            color: var(--success);
+            border: 1px solid rgba(16,185,129,0.3);
+        }
+        .status-badge.inactive, .status-badge.failed {
+            background: var(--danger-glow);
+            color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .status-badge.unknown {
+            background: rgba(100,116,139,0.1);
+            color: var(--text-muted);
+            border: 1px solid rgba(100,116,139,0.2);
+        }
+
+        /* ─── TABLE ──────────────────────────────────────────────────────────── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 10px 16px;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: var(--bg-card-hover); }
+
+        /* ─── BUTTONS ────────────────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger {
+            background: var(--danger-glow);
+            color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.2); }
+        .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+        /* ─── LAYOUT GRID ────────────────────────────────────────────────────── */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        /* ─── LOG VIEWER ─────────────────────────────────────────────────────── */
+        .log-output {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            color: #7dd3fc;
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-line { padding: 1px 0; line-height: 1.6; }
+        .log-line.error { color: #f87171; }
+        .log-line.warning { color: #fbbf24; }
+        .log-line.info { color: #7dd3fc; }
+
+        /* ─── FLASH MESSAGES ─────────────────────────────────────────────────── */
+        .flash { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 0.875rem; margin-bottom: 16px; }
+        .flash-success { background: var(--success-glow); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+        .flash-error   { background: var(--danger-glow);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.3); }
+
+        /* ─── UTILITIES ──────────────────────────────────────────────────────── */
+        .mb-4 { margin-bottom: 16px; }
+        .mb-6 { margin-bottom: 24px; }
+        .text-muted { color: var(--text-muted); }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── RESPONSIVE ─────────────────────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- ─── SIDEBAR ─────────────────────────────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand">⬡ EKAFY</div>
+            <div class="tagline">Hybrid Control System</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Overview</div>
+            <a href="/dashboard/" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+
+            <div class="nav-section-label">Management</div>
+            <a href="/dashboard/products/" class="nav-link {% if page == 'products' %}active{% endif %}">
+                <span class="nav-icon">📦</span> Products
+            </a>
+            <a href="/dashboard/services/" class="nav-link {% if page == 'services' %}active{% endif %}">
+                <span class="nav-icon">⚙️</span> Services
+            </a>
+            <a href="/dashboard/logs/" class="nav-link {% if page == 'logs' %}active{% endif %}">
+                <span class="nav-icon">📋</span> Logs
+            </a>
+
+            <div class="nav-section-label">External</div>
+            <a href="/api/v1/" class="nav-link" target="_blank">
+                <span class="nav-icon">🔌</span> API Explorer
+            </a>
+            <a href="http://blog.ekafy.com" class="nav-link" target="_blank">
+                <span class="nav-icon">📝</span> WordPress Blog
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            {% if user.is_authenticated %}
+            <div class="user-name">{{ user.username }}</div>
+            <div style="margin-top:4px;">
+                <form method="post" action="/dashboard/logout/" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.78rem;padding:0;">Sign out</button>
+                </form>
+            </div>
+            {% endif %}
+            <div style="margin-top:8px; font-size:0.65rem; color:var(--text-muted);">v1.0.0 · Ekafy Platform</div>
+        </div>
+    </aside>
+
+    <!-- ─── MAIN ────────────────────────────────────────────────────────────── -->
+    <main class="main">
+        <header class="topbar">
+            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="topbar-actions">
+                <span class="badge-live">LIVE</span>
+                <span style="font-size:0.78rem;color:var(--text-muted);" id="last-updated">—</span>
+            </div>
+        </header>
+        <div class="content-area">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        // Update "last updated" timestamp
+        function updateTimestamp() {
+            const el = document.getElementById('last-updated');
+            if (el) {
+                const now = new Date();
+                el.textContent = 'Updated ' + now.toLocaleTimeString();
+            }
+        }
+        updateTimestamp();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

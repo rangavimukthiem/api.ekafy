@@ -1,0 +1,46 @@
+[Unit]
+Description=Ekafy Django API + Dashboard (Gunicorn)
+Documentation=https://github.com/ekafy/core
+After=network.target postgresql.service redis.service
+Wants=postgresql.service
+
+[Service]
+User=ekafy
+Group=www-data
+WorkingDirectory=/srv/ekafy/backend
+EnvironmentFile=/srv/ekafy/backend/.env
+
+# Gunicorn: 2 workers per CPU core, max 4 on 2GB VPS
+ExecStart=/srv/ekafy/backend/venv/bin/gunicorn \
+    ekafy.wsgi:application \
+    --bind 127.0.0.1:8000 \
+    --workers 3 \
+    --worker-class sync \
+    --worker-connections 1000 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --timeout 30 \
+    --keep-alive 5 \
+    --access-logfile /srv/ekafy/logs/gunicorn.log \
+    --error-logfile /srv/ekafy/logs/gunicorn-error.log \
+    --log-level warning \
+    --capture-output
+
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths=/srv/ekafy /var/log
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
