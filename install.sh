@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-echo "# =============================================================================
+echo "\n =============================================================================
 #
 #   ███████╗██╗  ██╗ █████╗ ███████╗██╗   ██╗
 #   ██╔════╝██║ ██╔╝██╔══██╗██╔════╝╚██╗ ██╔╝
@@ -25,7 +25,7 @@ echo "# ========================================================================
 #     scp install.sh root@NEW_VPS_IP:/root/
 #     ssh root@NEW_VPS_IP "bash /root/install.sh"
 #
-# =============================================================================/n"
+# ============================================================================= \n"
 
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -61,7 +61,7 @@ GUNICORN_WORKERS="3"          # Tune: (2 × CPU cores) + 1
 PHP_VERSION="8.2"
 
 # GitHub repo (SSH) — change to your fork if needed
-GITHUB_REPO="git@github.com:ekafy/core.git"
+GITHUB_REPO="git@github.com:rangavimukthiem/api.ekafy.git"
 GITHUB_BRANCH="main"
 
 # ─── Feature flags (override via CLI or environment) ──────────────────────────
@@ -599,7 +599,7 @@ step_05_git_clone() {
     fi
 
     # ─────────────────────────────────────────────
-    # DETECT REAL USER (CRITICAL FOR sudo SAFETY)
+    # DETECT DEPLOY USER (sudo-safe)
     # ─────────────────────────────────────────────
 
     DEPLOY_USER="${SUDO_USER:-$USER}"
@@ -611,10 +611,10 @@ step_05_git_clone() {
     mkdir -p "${SSH_DIR}"
     chmod 700 "${SSH_DIR}"
 
-    log_info "Using SSH key for user: ${DEPLOY_USER}"
+    log_info "Using GitHub SSH for user: ${DEPLOY_USER}"
 
     # ─────────────────────────────────────────────
-    # CREATE KEY IF MISSING
+    # CREATE SSH KEY IF MISSING
     # ─────────────────────────────────────────────
 
     if [[ ! -f "${SSH_KEY}" ]]; then
@@ -626,21 +626,21 @@ step_05_git_clone() {
             -N ""
 
         echo ""
-        echo "════════════════════════════════════"
-        echo " ADD THIS KEY TO GITHUB"
-        echo "════════════════════════════════════"
+        echo "════════════════════════════"
+        echo " ADD THIS SSH KEY TO GITHUB"
+        echo "════════════════════════════"
         echo ""
 
         cat "${SSH_KEY}.pub"
 
         echo ""
-        read -rp "Press ENTER after adding key to GitHub..."
+        read -rp "Press ENTER after adding key..."
     fi
 
-    chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "${SSH_DIR}"
+    chown -R "${DEPLOY_USER}" "${SSH_DIR}" 2>/dev/null || true
 
     # ─────────────────────────────────────────────
-    # SSH AGENT FIX (VERY IMPORTANT)
+    # SSH AGENT FIX
     # ─────────────────────────────────────────────
 
     sudo -u "${DEPLOY_USER}" bash -c "
@@ -649,17 +649,19 @@ step_05_git_clone() {
     "
 
     # ─────────────────────────────────────────────
-    # known_hosts
+    # known_hosts SAFE SETUP
     # ─────────────────────────────────────────────
 
     touch "${SSH_DIR}/known_hosts"
+    chmod 600 "${SSH_DIR}/known_hosts"
+
     ssh-keyscan -H github.com >> "${SSH_DIR}/known_hosts" 2>/dev/null
 
     # ─────────────────────────────────────────────
-    # TEST SSH BEFORE CLONE (NO FALSE POSITIVES)
+    # SSH TEST (REAL CHECK)
     # ─────────────────────────────────────────────
 
-    log_check "Testing GitHub SSH access..."
+    log_check "Testing GitHub SSH authentication..."
 
     SSH_TEST=$(
         sudo -u "${DEPLOY_USER}" ssh -o BatchMode=yes -T git@github.com 2>&1 || true
@@ -674,15 +676,31 @@ step_05_git_clone() {
     log_info "GitHub SSH authentication OK"
 
     # ─────────────────────────────────────────────
-    # CLONE / UPDATE
+    # CRITICAL FIX: CREATE DIR BEFORE CLONE
+    # ─────────────────────────────────────────────
+
+    mkdir -p "${BACKEND_DIR}"
+
+    TARGET_GROUP="$(id -gn "${DEPLOY_USER}" 2>/dev/null || true)"
+
+    if getent group "$TARGET_GROUP" >/dev/null 2>&1; then
+        chown -R "${DEPLOY_USER}:${TARGET_GROUP}" "${BACKEND_DIR}" 2>/dev/null || true
+    else
+        chown -R "${DEPLOY_USER}" "${BACKEND_DIR}" 2>/dev/null || true
+    fi
+
+    chmod 775 "${BACKEND_DIR}" 2>/dev/null || true
+
+    # ─────────────────────────────────────────────
+    # CLONE OR UPDATE
     # ─────────────────────────────────────────────
 
     if [[ -d "${BACKEND_DIR}/.git" ]]; then
 
-        log_info "Updating repository..."
+        log_info "Repository exists — updating..."
 
-        git -C "${BACKEND_DIR}" fetch origin
-        git -C "${BACKEND_DIR}" reset --hard "origin/${GITHUB_BRANCH}"
+        sudo -u "${DEPLOY_USER}" git -C "${BACKEND_DIR}" fetch origin
+        sudo -u "${DEPLOY_USER}" git -C "${BACKEND_DIR}" reset --hard "origin/${GITHUB_BRANCH}"
 
     else
 
@@ -696,14 +714,13 @@ step_05_git_clone() {
     fi
 
     # ─────────────────────────────────────────────
-    # FIX PERMISSIONS SAFELY (NO HARD-CODED GROUPS)
+    # FINAL OWNERSHIP FIX (SAFE)
     # ─────────────────────────────────────────────
 
-    chown -R "${DEPLOY_USER}" "${BACKEND_DIR}"
+    chown -R "${DEPLOY_USER}" "${BACKEND_DIR}" 2>/dev/null || true
 
     log_info "Backend ready at ${BACKEND_DIR}"
 }
-
 # ─── STEP 6: Python Virtual Environment ──────────────────────────────────────
 step_06_python_env() {
     log_step "STEP 6/12 — Python Virtual Environment"
