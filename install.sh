@@ -1,6 +1,8 @@
 #!/bin/bash
 
 set -e
+DEBIAN_FRONTEND=noninteractive
+
 trap 'echo "❌ INSTALL FAILED at line $LINENO"' ERR
 
 LOGFILE="/var/log/ekafy-install.log"
