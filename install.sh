@@ -49,6 +49,8 @@ EKAFY_GROUP="www-data"
 # Directory layout
 EKAFY_BASE="/srv/ekafy"
 BACKEND_DIR="${EKAFY_BASE}/backend"
+# Django project root inside repo
+DJANGO_DIR="${BACKEND_DIR}/backend"
 WP_DIR="${EKAFY_BASE}/wordpress"
 LOGS_DIR="${EKAFY_BASE}/logs"
 LOGFILE="/var/log/ekafy-install.log"
@@ -737,9 +739,9 @@ step_06_python_env() {
 
     "${PIP}" install --upgrade pip --quiet
 
-    if file_exists "${BACKEND_DIR}/requirements.txt"; then
+   if file_exists "${DJANGO_DIR}/requirements.txt"; then
         log_info "Installing pip requirements..."
-        "${PIP}" install -r "${BACKEND_DIR}/requirements.txt" --quiet
+        "${PIP}" install -r "${DJANGO_DIR}/requirements.txt" --quiet
         log_info "Requirements installed."
     else
         log_warn "requirements.txt not found — installing minimal set..."
@@ -869,7 +871,7 @@ step_09_django() {
     log_step "STEP 9/12 — Django Setup"
 
     local PYTHON="${BACKEND_DIR}/venv/bin/python"
-    local MANAGE="${BACKEND_DIR}/manage.py"
+    local MANAGE="${DJANGO_DIR}/manage.py"
 
     if [[ ! -f "${MANAGE}" ]]; then
         log_warn "manage.py not found — skipping Django setup. Deploy your code first."
@@ -887,7 +889,7 @@ step_09_django() {
     "${PYTHON}" "${MANAGE}" collectstatic --noinput
 
     # Seed initial product (idempotent)
-    local seed_script="${BACKEND_DIR}/apps/products/fixtures/load_initial.py"
+    local seed_script="${DJANGO_DIR}/apps/products/fixtures/load_initial.py"
     if file_exists "${seed_script}"; then
         log_info "Seeding initial product data..."
         "${PYTHON}" "${MANAGE}" shell < "${seed_script}"
@@ -1017,7 +1019,7 @@ Wants=postgresql.service
 [Service]
 User=${EKAFY_USER}
 Group=${EKAFY_GROUP}
-WorkingDirectory=${BACKEND_DIR}
+WorkingDirectory=${DJANGO_DIR}
 EnvironmentFile=${BACKEND_DIR}/.env
 
 ExecStart=${BACKEND_DIR}/venv/bin/gunicorn \\
@@ -1055,7 +1057,7 @@ SERVICE
     systemctl daemon-reload
     systemctl enable ekafy --quiet
 
-    if file_exists "${BACKEND_DIR}/manage.py"; then
+    if file_exists "${DJANGO_DIR}/manage.py"; then
         systemctl restart ekafy
         sleep 2
         if svc_active ekafy; then
